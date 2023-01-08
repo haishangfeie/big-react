@@ -33,7 +33,7 @@ function childReconciler(shouldTrackEffects: boolean) {
 	return function reconcileChildFibers(
 		returnFiber: FiberNode,
 		currentFiber: FiberNode | null,
-		newChild?: ReactElementType
+		newChild?: ReactElementType | string | number
 	) {
 		// 判断newChild的类型
 		if (typeof newChild === 'object' && newChild !== null) {
@@ -43,9 +43,6 @@ function childReconciler(shouldTrackEffects: boolean) {
 						reconcileSingleElement(returnFiber, currentFiber, newChild)
 					);
 				default:
-					if (__DEV__) {
-						console.warn('未实现的reconcile类型', newChild);
-					}
 					break;
 			}
 		}
@@ -63,5 +60,15 @@ function childReconciler(shouldTrackEffects: boolean) {
 	};
 }
 
-export const reconcileChildFibers = childReconciler(true);
-export const mountChildFibers = childReconciler(false);
+export const reconcileChildFibers = __DEV__
+	? (() => {
+			console.log('reconcileChildFibers');
+			return childReconciler(true);
+	  })()
+	: childReconciler(true);
+export const mountChildFibers = __DEV__
+	? (() => {
+			console.log('mountChildFibers');
+			return childReconciler(false);
+	  })()
+	: childReconciler(false);

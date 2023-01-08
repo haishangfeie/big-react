@@ -6,8 +6,10 @@ import { UpdateQueue, processUpdateQueue } from './updateQueue';
 import { HostComponent, HostRoot, HostText } from './workTags';
 import { mountChildFibers, reconcileChildFibers } from './childFibers';
 
+/**
+ * 比较fiberNode和ReactElement，返回子fiberNode
+ */
 export const beginWork = (wip: FiberNode) => {
-	// 比较fiberNode和ReactElement，返回子fiberNode
 	switch (wip.tag) {
 		case HostRoot:
 			return updateHostRoot(wip);
@@ -21,13 +23,15 @@ export const beginWork = (wip: FiberNode) => {
 			}
 			break;
 	}
+	return null;
 };
 
 function updateHostRoot(wip: FiberNode) {
 	const baseState = wip.memoizedState;
-	const updateQueue = wip.updateQueue as UpdateQueue<Element>;
+	const updateQueue = wip.updateQueue as UpdateQueue<ReactElementType | null>;
 	const pending = updateQueue.shared.pending;
 	updateQueue.shared.pending = null;
+	// 这里的memoizedState是ReactElementType
 	const { memoizedState } = processUpdateQueue(baseState, pending);
 	wip.memoizedState = memoizedState;
 	const nextChildren = wip.memoizedState;
@@ -42,15 +46,22 @@ function updateHostComponent(wip: FiberNode) {
 	return wip.child;
 }
 
-function reconcileChildren(wip: FiberNode, children?: ReactElementType) {
+function reconcileChildren(
+	wip: FiberNode,
+	children?: ReactElementType | string | number
+) {
 	const current = wip.alternate;
 
+	/**
+	 * 这里其实就是要做一个性能优化，就是希望mount时，直接构建完整棵树再插入，而更新时是局部更新的，就不需要优化，因此mount和update会有不同的策略
+	 * mount时只需要在HostRootFiber里一次插入就好了，mount时除了HostRootFiber是存在current，其他的wip是没有current的，而update时就都有current了，因此只要通过判断current调用不同的方法就可以实现这个性能优化
+	 */
 	// hostRootFiber走到这个流程是一定会有current的，其他的只有mount后才有current
 	if (current !== null) {
 		// update&或者是hostRootFiber
-		reconcileChildFibers(wip, current?.child, children);
+		wip.child = reconcileChildFibers(wip, current?.child, children);
 	} else {
 		// mount（除了hostRootFiber）
-		mountChildFibers(wip, null, children);
+		wip.child = mountChildFibers(wip, null, children);
 	}
 }

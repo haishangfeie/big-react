@@ -20,6 +20,7 @@ export class FiberNode {
 	memoizedState: any;
 	alternate: FiberNode | null;
 	flags: Flags;
+	subtreeFlags: Flags;
 	updateQueue: unknown;
 
 	constructor(tag: WorkTag, pendingProps: Props, key: Key) {
@@ -52,12 +53,16 @@ export class FiberNode {
 		this.alternate = null;
 		// 副作用
 		this.flags = NoFlags;
+		this.subtreeFlags = NoFlags;
 	}
 }
 
 export class FiberRootNode {
+	/** 容器，RootElement,对于浏览器环境是dom，根据宿主环境的不同会有对应的类型 */
 	container: Container;
+	/** 指向HostRootFiber */
 	current: FiberNode;
+	/** 指向更新完成后的HostRootFiber */
 	finishedWork: FiberNode | null;
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
@@ -84,6 +89,7 @@ export const createWorkInProgress = (
 		wip.pendingProps = pendingProps;
 		// 清除副作用
 		wip.flags = NoFlags;
+		wip.subtreeFlags = NoFlags;
 	}
 
 	wip.type = current.type;

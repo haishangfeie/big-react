@@ -12,10 +12,17 @@ function prepareFreshStack(root: FiberRootNode) {
 export function scheduleUpdateOnFiber(fiber: FiberNode) {
 	// TODO:后续实现调度功能
 	const root = markUpdateFromFiberToRoot(fiber);
-	renderRoot(root);
+	if (__DEV__) {
+		if (root === null) {
+			console.warn('root无法找到，存入的fiber:', fiber);
+		}
+	}
+	if (root) {
+		renderRoot(root);
+	}
 }
 
-function markUpdateFromFiberToRoot(fiber: FiberNode) {
+function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
 	let node = fiber;
 	let parent = node.return;
 	while (parent !== null) {
@@ -23,7 +30,7 @@ function markUpdateFromFiberToRoot(fiber: FiberNode) {
 		parent = node.return;
 	}
 	if (node.tag === HostRoot) {
-		return node.stateNode;
+		return node.stateNode as FiberRootNode;
 	}
 	return null;
 }
@@ -43,6 +50,12 @@ function renderRoot(root: FiberRootNode) {
 			workInProgress = null;
 		}
 	} while (true);
+
+	const finishedWork = root.current.alternate;
+	root.finishedWork = finishedWork;
+
+	// 根据wip fiberNode树以及树中的flags执行具体的dom操作
+	commitRoot(root);
 }
 
 function workLoop() {
@@ -52,6 +65,7 @@ function workLoop() {
 }
 
 function performUnitOfWork(fiber: FiberNode) {
+	// 通过current 子FiberNode和子ReactElement生成子FiberNode
 	// next可能是子fiberNode也可能是null
 	const next = beginWork(fiber);
 	fiber.memoizedProps = fiber.pendingProps;
