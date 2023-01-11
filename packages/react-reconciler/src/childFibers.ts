@@ -60,15 +60,5 @@ function childReconciler(shouldTrackEffects: boolean) {
 	};
 }
 
-export const reconcileChildFibers = __DEV__
-	? (() => {
-			console.log('reconcileChildFibers');
-			return childReconciler(true);
-	  })()
-	: childReconciler(true);
-export const mountChildFibers = __DEV__
-	? (() => {
-			console.log('mountChildFibers');
-			return childReconciler(false);
-	  })()
-	: childReconciler(false);
+export const reconcileChildFibers = childReconciler(true);
+export const mountChildFibers = childReconciler(false);

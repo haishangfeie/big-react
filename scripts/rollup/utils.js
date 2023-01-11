@@ -24,7 +24,10 @@ export function getBaseRollupPlugins ({ alias = {
   __DEV__: true
 }, typescript = {} } = {}) {
   return [
-    replace(alias),
+    replace({
+      preventAssignment: true,
+      ...alias
+    }),
     cjs(),
     ts(typescript)
   ]
