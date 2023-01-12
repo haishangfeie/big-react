@@ -5,7 +5,12 @@ import {
 	createTextInstance
 } from 'hostConfig';
 import { FiberNode } from './fiber';
-import { HostRoot, HostComponent, HostText } from './workTags';
+import {
+	HostRoot,
+	HostComponent,
+	HostText,
+	FunctionComponent
+} from './workTags';
 import { NoFlags } from './FiberFlags';
 
 // 递归中的归阶段
@@ -41,6 +46,9 @@ export const completeWork = (wip: FiberNode) => {
 				const instance = createTextInstance(newProps.content);
 				wip.stateNode = instance;
 			}
+			bubbleProperties(wip);
+			return null;
+		case FunctionComponent:
 			bubbleProperties(wip);
 			return null;
 		default:
