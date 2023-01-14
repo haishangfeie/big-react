@@ -20,7 +20,7 @@ export default [
       },
       {
         file: `${distPath}/client.js`,
-        name: 'ReactDom',
+        name: 'client',
         format: 'umd'
       }
     ],
@@ -48,6 +48,23 @@ export default [
     // 定义外部包
     external: [
       ...Object.keys(peerDependencies)
+    ]
+  },
+  // react-test-utils
+  {
+    input: `${pkgPath}/test-utils.ts`,
+    output: [
+      {
+        file: `${distPath}/test-utils.js`,
+        name: 'testUtils',
+        format: 'umd'
+      }
+    ],
+    plugins: getBaseRollupPlugins(),
+    // 定义外部包
+    external: [
+      'react',
+      'react-dom'
     ]
   }
 ]

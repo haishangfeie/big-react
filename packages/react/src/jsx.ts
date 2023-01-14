@@ -48,7 +48,7 @@ export const jsx = (type: ElementType, config: any, ...maybeChildren: any) => {
 		}
 	}
 
-	if (maybeChildren) {
+	if (maybeChildren.length) {
 		if (maybeChildren.length === 1) {
 			props.children = maybeChildren[0];
 		} else {
@@ -84,3 +84,11 @@ export const jsxDEV = (type: ElementType, config: any) => {
 
 	return ReactElement(type, key, ref, props);
 };
+
+export function isValidElement(element: unknown): element is ReactElementType {
+	return (
+		typeof element === 'object' &&
+		element !== null &&
+		(element as any).$$typeof === REACT_ELEMENT_TYPE
+	);
+}

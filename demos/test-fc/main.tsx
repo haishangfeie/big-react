@@ -1,13 +1,11 @@
-import ReactDOM from 'react-dom/index';
+import ReactDOM from 'react-dom/client';
+import { useState } from 'react';
 
 const App = () => {
-	return (
-		<div>
-			<Child />
-		</div>
-	);
+	const [num, setNum] = useState(100);
+	window.setNum = setNum;
+	return <div>{num}</div>;
 };
-const Child = () => <span>child</span>;
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 	<App />

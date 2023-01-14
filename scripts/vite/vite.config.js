@@ -20,6 +20,10 @@ export default defineConfig({
         replacement: path.join(resolvePkgPath('react'), 'src/jsx.ts')
       },
       {
+        find: 'react-dom/client',
+        replacement: path.join(resolvePkgPath('react-dom'), 'index.ts')
+      },
+      {
         find: 'react',
         replacement: resolvePkgPath('react')
       },
