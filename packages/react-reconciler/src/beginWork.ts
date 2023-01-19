@@ -73,7 +73,7 @@ function reconcileChildren(
 	// hostRootFiber走到这个流程是一定会有current的，其他的只有mount后才有current
 	if (current !== null) {
 		// update&或者是hostRootFiber
-		wip.child = reconcileChildFibers(wip, current?.child, children);
+		wip.child = reconcileChildFibers(wip, current.child, children);
 	} else {
 		// mount（除了hostRootFiber）
 		wip.child = mountChildFibers(wip, null, children);
