@@ -8,6 +8,8 @@ import { REACT_ELEMENT_TYPE } from 'shared/ReactSymbols';
 import { HostText } from './workTags';
 import { ChildDeletion, Placement } from './FiberFlags';
 
+type ExistingChildren = Map<string | number, FiberNode>;
+
 function childReconciler(shouldTrackEffects: boolean) {
 	function deleteChild(returnFiber: FiberNode, childToDelete: FiberNode) {
 		if (!shouldTrackEffects) {
@@ -102,6 +104,128 @@ function childReconciler(shouldTrackEffects: boolean) {
 		}
 		return fiber;
 	}
+	function reconcileChildrenArray(
+		returnFiber: FiberNode,
+		currentFirstChild: FiberNode | null,
+		// 当前虽然只需要考虑ReactElement这种情况，但是在react源码中，还有其他的类型，
+		newChild: any[]
+	) {
+		/*
+			1. 将current保存到map中
+			2. 遍历newChild，寻找是否可复用
+			3. 标记移动还是插入
+			4. 将map剩余的节点标记删除 
+		 */
+		// 最后一个可复用fiber在current中的索引
+		let lastPlacedIndex = 0;
+		// 创建的最后一个fiber
+		let lastNewFiber: FiberNode | null = null;
+		// 创建的第一个fiber
+		let firstNewFiber: FiberNode | null = null;
+
+		// 1. 将current保存到map中
+		const existingChildren: ExistingChildren = new Map();
+		let current = currentFirstChild;
+		while (current !== null) {
+			const keyToUse = current.key !== null ? current.key : current.index;
+			existingChildren.set(keyToUse, current);
+			current = current.sibling;
+		}
+
+		for (let i = 0; i < newChild.length; i++) {
+			// 2. 遍历newChild，寻找是否可复用
+			const after = newChild[i];
+			const newFiber = updateFromMap(returnFiber, existingChildren, i, after);
+			if (newFiber === null) {
+				continue;
+			}
+
+			// 3. 标记移动还是插入
+			newFiber.index = i;
+			newFiber.return = returnFiber;
+
+			if (lastNewFiber === null) {
+				lastNewFiber = newFiber;
+				firstNewFiber = newFiber;
+			} else {
+				lastNewFiber.sibling = newFiber;
+				lastNewFiber = newFiber;
+			}
+
+			if (!shouldTrackEffects) {
+				continue;
+			}
+			const current = newFiber.alternate;
+			if (current !== null) {
+				const oldIndex = current.index;
+				if (oldIndex < lastPlacedIndex) {
+					// 移动
+					newFiber.flags |= Placement;
+					continue;
+				} else {
+					lastPlacedIndex = oldIndex;
+				}
+			} else {
+				// mount 插入
+				newFiber.flags |= Placement;
+			}
+		}
+
+		// 4. 将map剩余的节点标记删除
+		existingChildren.forEach((fiber) => {
+			deleteChild(returnFiber, fiber);
+		});
+		return firstNewFiber;
+	}
+	/**
+	 * 用map更新Fiber，返回新Fiber，或者null。
+	 * fiber能复用时，返回的新Fiber是复用的fiber,否则返回新创建的fiber
+	 * 如果更新后的值是false,null，这种情况会返回null
+	 */
+	function updateFromMap(
+		returnFiber: FiberNode,
+		existingChildren: ExistingChildren,
+		index: number,
+		element: any
+	): FiberNode | null {
+		const keyToUse = element.key === null ? index : element.key;
+		const before = existingChildren.get(keyToUse);
+
+		// element对应的FiberNode是HostText类型
+		if (typeof element === 'string' || typeof element === 'number') {
+			if (before) {
+				if (before.tag === HostText) {
+					existingChildren.delete(keyToUse);
+					// ? 为什么这里要转为字符串，如果这里要转，之前为什么好像没有转呢？
+					return useFiber(before, { content: element + '' });
+				}
+			}
+			// ? 这里是不是有问题，key不是应该传入keyToUse吗？
+			return new FiberNode(HostText, { content: element + '' }, null);
+		}
+
+		// ReactElement
+		if (typeof element === 'object' && element !== null) {
+			switch (element.$$typeof) {
+				case REACT_ELEMENT_TYPE:
+					if (before) {
+						if (before.type === element.type) {
+							existingChildren.delete(keyToUse);
+							return useFiber(before, element.props);
+						}
+					}
+					return createFiberFromElement(element);
+				default:
+					break;
+			}
+
+			// TODO: 数组类型
+			if (Array.isArray(element) && __DEV__) {
+				console.warn('还没实现数组类型的child');
+			}
+		}
+		return null;
+	}
 	return function reconcileChildFibers(
 		returnFiber: FiberNode,
 		currentFiber: FiberNode | null,
@@ -117,8 +241,11 @@ function childReconciler(shouldTrackEffects: boolean) {
 				default:
 					break;
 			}
+			// 多节点情况
+			if (Array.isArray(newChild)) {
+				return reconcileChildrenArray(returnFiber, currentFiber, newChild);
+			}
 		}
-		// TODO:多节点情况
 		// HostText
 		if (typeof newChild === 'string' || typeof newChild === 'number') {
 			return placeSingleChild(
