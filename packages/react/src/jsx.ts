@@ -58,8 +58,7 @@ export const jsx = (type: ElementType, config: any, ...maybeChildren: any) => {
 	return ReactElement(type, key, ref, props);
 };
 
-export const jsxDEV = (type: ElementType, config: any) => {
-	let key: Key = null;
+export const jsxDEV = (type: ElementType, config: any, key: Key) => {
 	let ref: Ref = null;
 	const props: Props = {};
 

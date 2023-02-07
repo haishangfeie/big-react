@@ -116,11 +116,11 @@ function childReconciler(shouldTrackEffects: boolean) {
 			3. 标记移动还是插入
 			4. 将map剩余的节点标记删除 
 		 */
-		// 最后一个可复用fiber在current中的索引
+		// 当前可复用fiber中current的index的最大值
 		let lastPlacedIndex = 0;
-		// 创建的最后一个fiber
+		// 当前遍历到的最后一个fiber
 		let lastNewFiber: FiberNode | null = null;
-		// 创建的第一个fiber
+		// 遍历的第一个fiber
 		let firstNewFiber: FiberNode | null = null;
 
 		// 1. 将current保存到map中
@@ -133,17 +133,17 @@ function childReconciler(shouldTrackEffects: boolean) {
 		}
 
 		for (let i = 0; i < newChild.length; i++) {
-			// 2. 遍历newChild，寻找是否可复用
+			// 2. 遍历newChild，寻找是否可复用（能复用的复用，不能就创建新的fiber）
 			const after = newChild[i];
 			const newFiber = updateFromMap(returnFiber, existingChildren, i, after);
 			if (newFiber === null) {
 				continue;
 			}
 
-			// 3. 标记移动还是插入
 			newFiber.index = i;
 			newFiber.return = returnFiber;
 
+			// 3. 标记移动还是插入
 			if (lastNewFiber === null) {
 				lastNewFiber = newFiber;
 				firstNewFiber = newFiber;
@@ -201,6 +201,7 @@ function childReconciler(shouldTrackEffects: boolean) {
 				}
 			}
 			// ? 这里是不是有问题，key不是应该传入keyToUse吗？
+			// 没有问题，这里是文本节点，不存在key
 			return new FiberNode(HostText, { content: element + '' }, null);
 		}
 

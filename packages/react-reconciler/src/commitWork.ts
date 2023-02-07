@@ -1,7 +1,9 @@
 import {
 	Container,
+	Instance,
 	appendChildToContainer,
 	commitUpdate,
+	insertChildToContainer,
 	removeChild
 } from 'hostConfig';
 import {
@@ -150,10 +152,73 @@ const commitPlacement = (finishedWork: FiberNode) => {
 		console.warn('执行Placement操作', finishedWork);
 	}
 	const hostParent = getHostParent(finishedWork);
+
+	const hostSibling = getHostSibling(finishedWork);
+
 	if (hostParent !== null) {
-		appendPlacementNodeIntoContainer(finishedWork, hostParent);
+		insertOrAppendPlacementNodeIntoContainer(
+			finishedWork,
+			hostParent,
+			hostSibling
+		);
 	}
 };
+
+/* 
+	要找节点的hostSibling，要注意：
+	1. 节点的sibling可能不是hostSibling，这时需要往下遍历直到找到hostText或者hostComponent
+	2. 节点的sibling，可能是父节点的兄弟节点，也就是当节点没有sibling时，需要往上遍历直到遇到hostText或者hostCompont或者发现兄弟节点
+	例子：<App/><div></div>
+	function App(){return (<A />)}
+	对于A来说，它的host sibling是其父节点的sibling
+	3. 不稳定的host节点不能作为目标兄弟节点
+	例子：节点已经被标记为Placement，这个节点就是不稳定的，因为这个节点可能需要移动
+*/
+function getHostSibling(fiber: FiberNode): Instance | null {
+	let node: FiberNode = fiber;
+
+	findSibling: while (true) {
+		while (node.sibling === null) {
+			// 向上遍历
+			const parent: FiberNode | null = node.return;
+			if (
+				parent === null ||
+				parent.tag === HostRoot ||
+				parent.tag === HostComponent
+			) {
+				return null;
+			}
+			node = parent;
+		}
+		// sibling存在，往下遍历直到发现HostComponent或者HostText
+		if (node.sibling) {
+			node.sibling.return = node.return;
+			node = node.sibling;
+		}
+
+		while (node.tag !== HostComponent && node.tag !== HostText) {
+			// 向下遍历
+			if ((node.flags & Placement) !== NoFlags) {
+				// 这表示这个节点是不稳定的
+				continue findSibling;
+			}
+			if (node.child === null) {
+				continue findSibling;
+			} else {
+				// ? 为什么这里要赋值return?这个不是binginWork在获取子fiber的时候就已经设置了吗？
+				// 理由就是为了避免结构不稳定导致的bug，所以加了一层保险
+				node.child.return = node;
+				node = node.child;
+			}
+		}
+
+		// 这表示这个节点是稳定的
+		if ((node.flags & Placement) === NoFlags) {
+			return node.stateNode;
+		}
+		return null;
+	}
+}
 
 function getHostParent(fiber: FiberNode): Container | null {
 	let parent = fiber.return;
@@ -174,22 +239,28 @@ function getHostParent(fiber: FiberNode): Container | null {
 	return null;
 }
 
-function appendPlacementNodeIntoContainer(
+function insertOrAppendPlacementNodeIntoContainer(
 	finishedWork: FiberNode,
-	hostParent: Container
+	hostParent: Container,
+	before?: Instance | null
 ) {
 	if (finishedWork.tag === HostComponent || finishedWork.tag === HostText) {
-		appendChildToContainer(hostParent, finishedWork.stateNode);
+		if (before) {
+			insertChildToContainer(finishedWork.stateNode, hostParent, before);
+		} else {
+			appendChildToContainer(hostParent, finishedWork.stateNode);
+		}
+
 		return;
 	}
 	const child = finishedWork.child;
 
 	if (child !== null) {
-		appendPlacementNodeIntoContainer(child, hostParent);
+		insertOrAppendPlacementNodeIntoContainer(child, hostParent);
 		let sibling = child.sibling;
 
 		while (sibling !== null) {
-			appendPlacementNodeIntoContainer(sibling, hostParent);
+			insertOrAppendPlacementNodeIntoContainer(sibling, hostParent);
 			sibling = sibling.sibling;
 		}
 	}
