@@ -80,13 +80,11 @@ function recordChildrenToDelete(
 	unmountFiber: FiberNode
 ) {
 	/* 
-		1. 找到第一个hootRoot节点（第一个要被删除节点的根dom）
+		1. 取存下的最后一个hostRoot节点
 		2. 每找到一个host节点，都判断一下是不是1.中节点的兄弟节点
 	*/
 	// 1. 找到第一个hootRoot节点（第一个要被删除节点的根dom）
-	// ? 这是课程的代码，但是不是说是第一个吗？所以我认为下面的写法才是对的
-	// const lastOne = childrenToDelete[childrenToDelete.length - 1];
-	const lastOne = childrenToDelete[0];
+	const lastOne = childrenToDelete[childrenToDelete.length - 1];
 	if (!lastOne) {
 		childrenToDelete.push(unmountFiber);
 	} else {
