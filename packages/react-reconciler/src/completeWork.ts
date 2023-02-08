@@ -9,7 +9,8 @@ import {
 	HostRoot,
 	HostComponent,
 	HostText,
-	FunctionComponent
+	FunctionComponent,
+	Fragment
 } from './workTags';
 import { NoFlags, Update } from './FiberFlags';
 import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
@@ -24,9 +25,6 @@ export const completeWork = (wip: FiberNode) => {
 	const current = wip.alternate;
 
 	switch (wip.tag) {
-		case HostRoot:
-			bubbleProperties(wip);
-			return null;
 		case HostComponent:
 			// 对于HostComponent，wip.stateNode存储的就是dom
 			if (current !== null && wip.stateNode) {
@@ -63,7 +61,9 @@ export const completeWork = (wip: FiberNode) => {
 			}
 			bubbleProperties(wip);
 			return null;
+		case HostRoot:
 		case FunctionComponent:
+		case Fragment:
 			bubbleProperties(wip);
 			return null;
 		default:

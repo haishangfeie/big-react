@@ -40,9 +40,7 @@ export function renderWithHooks(wip: FiberNode) {
 
 	const Component = wip.type;
 	const props = wip.pendingProps;
-
 	const children = Component(props);
-
 	// 重置
 	currentlyRenderingFiber = null;
 	workInProgressHook = null;
@@ -66,7 +64,6 @@ function updateState<State>(): [State, Dispatch<State>] {
 		const { memoizedState } = processUpdateQueue(hook.memoizedState, pending);
 		hook.memoizedState = memoizedState;
 	}
-
 	return [hook.memoizedState, queue.dispatch!];
 }
 
@@ -87,6 +84,7 @@ function mountState<State>(
 	// @ts-ignore
 	const dispatch = dispatchSetState.bind(null, currentlyRenderingFiber!, queue);
 	queue.dispatch = dispatch;
+
 	return [memoizedState, dispatch];
 }
 

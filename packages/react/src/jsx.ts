@@ -9,7 +9,7 @@ import {
 } from 'shared/ReactTypes';
 const ReactElement = function (
 	type: Type,
-	key: Key,
+	key: Key = null,
 	ref: Ref,
 	props: Props
 ): ReactElementType {
@@ -91,3 +91,5 @@ export function isValidElement(element: unknown): element is ReactElementType {
 		(element as any).$$typeof === REACT_ELEMENT_TYPE
 	);
 }
+
+export { REACT_FRAGMENT_TYPE as Fragment } from 'shared/ReactSymbols';

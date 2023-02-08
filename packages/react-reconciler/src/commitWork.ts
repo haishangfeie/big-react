@@ -75,21 +75,45 @@ const commitMutationEffectsOnFiber = (finishedWork: FiberNode) => {
 	}
 };
 
+function recordChildrenToDelete(
+	childrenToDelete: FiberNode[],
+	unmountFiber: FiberNode
+) {
+	/* 
+		1. 找到第一个hootRoot节点（第一个要被删除节点的根dom）
+		2. 每找到一个host节点，都判断一下是不是1.中节点的兄弟节点
+	*/
+	// 1. 找到第一个hootRoot节点（第一个要被删除节点的根dom）
+	// ? 这是课程的代码，但是不是说是第一个吗？所以我认为下面的写法才是对的
+	// const lastOne = childrenToDelete[childrenToDelete.length - 1];
+	const lastOne = childrenToDelete[0];
+	if (!lastOne) {
+		childrenToDelete.push(unmountFiber);
+	} else {
+		// 2. 每找到一个host节点，都判断一下是不是1.中节点的兄弟节点
+		let node = lastOne.sibling;
+		while (node !== null) {
+			if (unmountFiber === node) {
+				childrenToDelete.push(node);
+				// ? 这个是我自己加的，按我的理解这里应该要break的
+				break;
+			}
+			node = node.sibling;
+		}
+	}
+}
+
 function commitDeletion(childToDelete: FiberNode) {
-	let rootHostNode: FiberNode | null = null;
+	const rootChildrenToDelete: FiberNode[] = [];
 	// 递归子树
 	commitNestedComponent(childToDelete, (unmountFiber) => {
 		switch (unmountFiber.tag) {
 			case HostComponent:
-				if (rootHostNode === null) {
-					rootHostNode = unmountFiber;
-				}
+				recordChildrenToDelete(rootChildrenToDelete, unmountFiber);
 				// TODO: 解绑ref
 				return;
 			case HostText:
-				if (rootHostNode === null) {
-					rootHostNode = unmountFiber;
-				}
+				recordChildrenToDelete(rootChildrenToDelete, unmountFiber);
 				return;
 			case FunctionComponent:
 				// TODO useEffect unmount，解绑ref
@@ -101,21 +125,23 @@ function commitDeletion(childToDelete: FiberNode) {
 				}
 				break;
 		}
-
-		// ? 垃圾回收这块没有太理解
-		// 解除引用，这是为了可以触发到垃圾回收
-		childToDelete.return = null;
-		childToDelete.child = null;
 	});
 	// 移除rootHostComponent的Dom
-	if (rootHostNode !== null) {
-		const parent = getHostParent(rootHostNode);
+	if (rootChildrenToDelete.length) {
+		const parent = getHostParent(childToDelete);
 		if (parent) {
-			removeChild((rootHostNode as FiberNode).stateNode, parent);
+			rootChildrenToDelete.forEach((node) => {
+				removeChild(node.stateNode, parent);
+			});
 		} else if (__DEV__) {
 			console.warn('没有找到父节点，无法移除');
 		}
 	}
+
+	// ? 垃圾回收这块没有太理解
+	// 解除引用，这是为了可以触发到垃圾回收
+	childToDelete.return = null;
+	childToDelete.child = null;
 }
 
 function commitNestedComponent(
@@ -130,7 +156,6 @@ function commitNestedComponent(
 			node.child.return = node;
 			node = node.child;
 			onCommitUnmount(node);
-			continue;
 		}
 		if (node === root) {
 			return;
@@ -141,9 +166,8 @@ function commitNestedComponent(
 			}
 			node = node.return;
 		}
-		node.sibling.return = node;
+		node.sibling.return = node.return;
 		node = node.sibling;
-		onCommitUnmount(node);
 	}
 }
 
