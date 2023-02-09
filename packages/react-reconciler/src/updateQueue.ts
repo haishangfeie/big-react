@@ -1,8 +1,11 @@
 import { Dispatch } from 'react/src/currentDispatcher';
 import { Action } from 'shared/ReactTypes';
+import { Lane } from './fiberLanes';
 
 export interface Update<State> {
 	action: Action<State>;
+	next: Update<any> | null;
+	lane: Lane;
 }
 
 export interface UpdateQueue<State> {
@@ -12,9 +15,14 @@ export interface UpdateQueue<State> {
 	dispatch: Dispatch<State> | null;
 }
 
-export const createUpdate = <State>(action: Action<State>): Update<State> => {
+export const createUpdate = <State>(
+	action: Action<State>,
+	lane: Lane
+): Update<State> => {
 	return {
-		action
+		action,
+		next: null,
+		lane
 	};
 };
 
@@ -32,6 +40,18 @@ export const enqueueUpdate = <State>(
 	updateQueue: UpdateQueue<State>,
 	update: Update<State>
 ) => {
+	const pending = updateQueue.shared.pending;
+	if (pending === null) {
+		// 自己指向自己，构成环状链表:peind=a->a
+		update.next = update;
+	} else {
+		// 假如update是b,结果会是pending=b->a->b
+		// c,  c->a, b->c  // c->a->b->c
+		update.next = pending.next;
+		pending.next = update;
+	}
+	// 所以pending指向的是最后一个update，后面是顺序依次从第一个指向到最后一个，形成环状
+	// 即：d->a->b->c->d
 	updateQueue.shared.pending = update;
 };
 
