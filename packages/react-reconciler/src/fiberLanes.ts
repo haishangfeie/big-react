@@ -15,3 +15,8 @@ export function mergeLanes(laneA: Lane, laneB: Lane): Lanes {
 export function requestUpdateLanes() {
 	return SyncLane;
 }
+
+export function getHighestPriorityLane(lanes: Lanes): Lane {
+	// 值越小，对应的优先级越高（不包括0）
+	return lanes & -lanes;
+}

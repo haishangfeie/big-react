@@ -1,8 +1,17 @@
+import { scheduleMicroTask } from 'hostConfig';
 import { MutationMask, NoFlags } from './FiberFlags';
 import { beginWork } from './beginWork';
 import { commitMutationEffects } from './commitWork';
 import { completeWork } from './completeWork';
 import { FiberNode, FiberRootNode, createWorkInProgress } from './fiber';
+import {
+	Lane,
+	NoLane,
+	SyncLane,
+	getHighestPriorityLane,
+	mergeLanes
+} from './fiberLanes';
+import { flushSyncCallbacks, scheduleSyncCallback } from './syncTaskQueue';
 import { HostRoot } from './workTags';
 
 let workInProgress: FiberNode | null = null;
@@ -11,7 +20,7 @@ function prepareFreshStack(root: FiberRootNode) {
 	workInProgress = createWorkInProgress(root.current, {});
 }
 
-export function scheduleUpdateOnFiber(fiber: FiberNode) {
+export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 	// TODO:后续实现调度功能
 	const root = markUpdateFromFiberToRoot(fiber);
 	if (__DEV__) {
@@ -20,8 +29,33 @@ export function scheduleUpdateOnFiber(fiber: FiberNode) {
 		}
 	}
 	if (root) {
-		renderRoot(root);
+		markRootUpdated(root, lane);
+		ensureRootIsScheduled(root);
 	}
+}
+
+// schedule阶段入口
+function ensureRootIsScheduled(root: FiberRootNode) {
+	const updateLane = getHighestPriorityLane(root.pendingLanes);
+	if (updateLane === NoLane) {
+		return;
+	}
+
+	if (updateLane === SyncLane) {
+		// 同步优先级，用微任务调度
+		if (__DEV__) {
+			console.warn(`在微任务中调度，优先级:${updateLane}`);
+		}
+		scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root, updateLane));
+		scheduleMicroTask(flushSyncCallbacks);
+	} else {
+		// 其他优先级，使用宏任务调度
+		console.warn('todo:其他优先级，暂未实现');
+	}
+}
+
+function markRootUpdated(root: FiberRootNode, lane: Lane) {
+	root.pendingLanes = mergeLanes(root.pendingLanes, lane);
 }
 
 function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
@@ -37,7 +71,18 @@ function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
 	return null;
 }
 
-function renderRoot(root: FiberRootNode) {
+function performSyncWorkOnRoot(root: FiberRootNode, lane: Lane) {
+	const nextLane = getHighestPriorityLane(root.pendingLanes);
+
+	if (nextLane !== SyncLane) {
+		// 有两种可能：1. 是比SyncLane低优先级的调度
+		// 2. 是NoLane
+		// 但不管是哪种情况，显然都不是同步更新
+		// 这里是为了保险，在调用一次方法
+		// ? 不过这里我其实不是很理解，这两种情况是怎样进来的，可能要等学习后续流程，加深一点理解才能明白。不过假如是上面的情况，那么第一种情况还是要处理的，所以就调用这个方法，第二种情况方法里面会直接return。
+		ensureRootIsScheduled(root);
+		return;
+	}
 	// 初始化
 	prepareFreshStack(root);
 
