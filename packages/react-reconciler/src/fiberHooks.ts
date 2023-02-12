@@ -11,6 +11,8 @@ import {
 import { Action } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
+import { PassiveEffect } from './FiberFlags';
+import { EffectTag, HookHasEffect, Passive } from './hookEffectTags';
 
 /** 当前渲染的wip fiber */
 let currentlyRenderingFiber: FiberNode | null = null;
@@ -27,6 +29,22 @@ interface Hook {
 	updateQueue: unknown;
 	next: Hook | null;
 }
+
+export interface Effect {
+	tag: EffectTag;
+	create: EffectCallback | void;
+	destroy: EffectCallback | void;
+	deps: EffectDeps | void;
+	next: Effect | null;
+}
+
+export interface FCUpdateQueue<State> extends UpdateQueue<State> {
+	// 环状链表，指向effect链表的最后一个，next指向的就是第一个effect
+	lastEffect: Effect | null;
+}
+
+type EffectCallback = () => void;
+type EffectDeps = any[] | null;
 
 export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	currentlyRenderingFiber = wip;
@@ -55,7 +73,8 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 }
 
 const HooksDispatcherOnMount: Dispatcher = {
-	useState: mountState
+	useState: mountState,
+	useEffect: mountEffect
 };
 
 const HooksDispatcherOnUpdate: Dispatcher = {
@@ -182,10 +201,68 @@ function updateWorkInProgressHook(): Hook {
 			currentlyRenderingFiber.memoizedState = workInProgressHook;
 		}
 	} else {
-		// mount时，不是第一个hook
+		// update时，不是第一个hook
 		workInProgressHook.next = newHook;
 		workInProgressHook = newHook;
 	}
 
 	return workInProgressHook;
+}
+
+/* effect */
+function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+	const hook = mountWorkInProgressHook();
+
+	const nextDeps = deps === undefined ? null : deps;
+	if (currentlyRenderingFiber) {
+		currentlyRenderingFiber.flags |= PassiveEffect;
+	} else {
+		throw new Error('请在函数组件内调用hook');
+	}
+	hook.memoizedState = pushEffect(
+		Passive | HookHasEffect,
+		create,
+		// mount是没有destroy的
+		undefined,
+		nextDeps
+	);
+}
+
+function pushEffect(
+	hookFlags: EffectTag,
+	create: EffectCallback | void,
+	destroy: EffectCallback | void,
+	deps: EffectDeps | void
+): Effect {
+	const effect: Effect = {
+		tag: hookFlags,
+		create,
+		destroy,
+		deps,
+		next: null
+	};
+	const fiber = currentlyRenderingFiber as FiberNode;
+	let updateQueue = fiber.updateQueue as FCUpdateQueue<any>;
+	if (updateQueue === null) {
+		updateQueue = fiber.updateQueue = createFCUpdateQueue();
+		effect.next = effect;
+		updateQueue.lastEffect = effect;
+	} else {
+		const lastEffect = updateQueue.lastEffect;
+		if (lastEffect === null) {
+			effect.next = effect;
+			updateQueue.lastEffect = effect;
+		} else {
+			effect.next = lastEffect!.next;
+			lastEffect!.next = effect;
+			updateQueue.lastEffect = effect;
+		}
+	}
+	return effect;
+}
+
+function createFCUpdateQueue<State>() {
+	const updateQueue = createUpdateQueue<State>() as FCUpdateQueue<State>;
+	updateQueue.lastEffect = null;
+	return updateQueue;
 }
