@@ -10,11 +10,15 @@ import {
 } from './updateQueue';
 import { Action } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
-import { requestUpdateLanes } from './fiberLanes';
+import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 
+/** 当前渲染的wip fiber */
 let currentlyRenderingFiber: FiberNode | null = null;
+/** wip指向的hook */
 let workInProgressHook: Hook | null = null;
+/** current fiber指向的hook */
 let currentHook: Hook | null = null;
+let renderLane: Lane = NoLane;
 
 const { currentDispatcher } = internals;
 
@@ -24,10 +28,11 @@ interface Hook {
 	next: Hook | null;
 }
 
-export function renderWithHooks(wip: FiberNode) {
+export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	currentlyRenderingFiber = wip;
 	// 重置
 	wip.memoizedState = null;
+	renderLane = lane;
 
 	const current = wip.alternate;
 	if (current !== null) {
@@ -35,7 +40,6 @@ export function renderWithHooks(wip: FiberNode) {
 		currentDispatcher.current = HooksDispatcherOnUpdate;
 	} else {
 		// mount
-		// TODO
 		currentDispatcher.current = HooksDispatcherOnMount;
 	}
 
@@ -46,6 +50,7 @@ export function renderWithHooks(wip: FiberNode) {
 	currentlyRenderingFiber = null;
 	workInProgressHook = null;
 	currentHook = null;
+	renderLane = NoLane;
 	return children;
 }
 
@@ -62,9 +67,14 @@ function updateState<State>(): [State, Dispatch<State>] {
 	const queue = hook.updateQueue as UpdateQueue<State>;
 	const { pending } = queue.shared;
 	if (pending !== null) {
-		const { memoizedState } = processUpdateQueue(hook.memoizedState, pending);
+		const { memoizedState } = processUpdateQueue(
+			hook.memoizedState,
+			pending,
+			renderLane
+		);
 		hook.memoizedState = memoizedState;
 	}
+	queue.shared.pending = null;
 	return [hook.memoizedState, queue.dispatch!];
 }
 
@@ -94,7 +104,7 @@ function dispatchSetState<State>(
 	updateQueue: UpdateQueue<State>,
 	action: Action<State>
 ) {
-	const lane = requestUpdateLanes();
+	const lane = requestUpdateLane();
 	const update = createUpdate(action, lane);
 	enqueueUpdate(updateQueue, update);
 	scheduleUpdateOnFiber(fiber, lane);
@@ -108,6 +118,7 @@ function mountWorkInProgressHook(): Hook {
 	};
 	// mount时是第一个hook
 	if (workInProgressHook === null) {
+		// 判断hook是否在React函数或者hook中使用
 		if (currentlyRenderingFiber === null) {
 			throw new Error('请在函数组件内调用hook');
 		} else {
@@ -139,6 +150,7 @@ function updateWorkInProgressHook(): Hook {
 		} else {
 			// 这种属于异常情况 current不存在应该是mount阶段，不应该会调用这个update阶段的方法
 			nextCurrentHook = null;
+			throw new Error('update阶段不应该进入此逻辑');
 		}
 	} else {
 		// FC update时后续的hook

@@ -12,20 +12,24 @@ import {
 } from './workTags';
 import { mountChildFibers, reconcileChildFibers } from './childFibers';
 import { renderWithHooks } from './fiberHooks';
+import { Lane } from './fiberLanes';
 
 /**
  * 比较fiberNode和ReactElement，返回子fiberNode
  */
-export const beginWork = (wip: FiberNode) => {
+// 这个lane就是当前render执行所属的优先级lane，整个render过程都是这个lane
+export const beginWork = (wip: FiberNode, renderLane: Lane) => {
 	switch (wip.tag) {
 		case HostRoot:
-			return updateHostRoot(wip);
+			// 会用到processUpdateQueue，所以需要lane
+			return updateHostRoot(wip, renderLane);
 		case HostComponent:
 			return updateHostComponent(wip);
 		case HostText:
 			return null;
 		case FunctionComponent:
-			return updateFunctionComponent(wip);
+			// 会用到processUpdateQueue，所以需要lane
+			return updateFunctionComponent(wip, renderLane);
 		case Fragment:
 			return updateFragment(wip);
 		default:
@@ -37,19 +41,20 @@ export const beginWork = (wip: FiberNode) => {
 	return null;
 };
 
-function updateFunctionComponent(wip: FiberNode) {
-	const nextChildren = renderWithHooks(wip);
+function updateFunctionComponent(wip: FiberNode, renderLane: Lane) {
+	const nextChildren = renderWithHooks(wip, renderLane);
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
 
-function updateHostRoot(wip: FiberNode) {
+function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	const baseState = wip.memoizedState;
 	const updateQueue = wip.updateQueue as UpdateQueue<ReactElementType | null>;
 	const pending = updateQueue.shared.pending;
 	updateQueue.shared.pending = null;
 	// 这里的memoizedState是ReactElementType
-	const { memoizedState } = processUpdateQueue(baseState, pending);
+	const { memoizedState } = processUpdateQueue(baseState, pending, renderLane);
+	updateQueue.shared.pending = null;
 	wip.memoizedState = memoizedState;
 	const nextChildren = wip.memoizedState;
 	reconcileChildren(wip, nextChildren);

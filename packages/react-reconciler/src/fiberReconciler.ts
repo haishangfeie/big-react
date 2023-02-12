@@ -12,7 +12,7 @@ import {
 } from './updateQueue';
 import { ReactElementType } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
-import { requestUpdateLanes } from './fiberLanes';
+import { requestUpdateLane } from './fiberLanes';
 
 // 当执行ReactDom.createRoot时，内部就会执行createContainer
 export function createContainer(container: Container) {
@@ -28,7 +28,7 @@ export function updateContainer(
 	root: FiberRootNode
 ) {
 	const hostRootFiber = root.current;
-	const lane = requestUpdateLanes();
+	const lane = requestUpdateLane();
 	const update = createUpdate(element, lane);
 	enqueueUpdate(
 		hostRootFiber.updateQueue as UpdateQueue<ReactElementType | null>,

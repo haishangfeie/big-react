@@ -17,10 +17,11 @@ export function flushSyncCallbacks() {
 			});
 		} catch (error) {
 			if (__DEV__) {
-				console.warn('flushSyncCallbacks报错', e);
+				console.warn('flushSyncCallbacks报错', error);
 			}
 		} finally {
 			isFlushingSyncQueue = false;
+			syncQueue = null;
 		}
 	}
 }
