@@ -1,9 +1,19 @@
 import { scheduleMicroTask } from 'hostConfig';
-import { MutationMask, NoFlags } from './FiberFlags';
+import { MutationMask, NoFlags, PassiveMask } from './FiberFlags';
 import { beginWork } from './beginWork';
-import { commitMutationEffects } from './commitWork';
+import {
+	commitHookEffectListCreate,
+	commitHookEffectListDestroy,
+	commitHookEffectListUnmount,
+	commitMutationEffects
+} from './commitWork';
 import { completeWork } from './completeWork';
-import { FiberNode, FiberRootNode, createWorkInProgress } from './fiber';
+import {
+	FiberNode,
+	FiberRootNode,
+	PendingPassiveEffects,
+	createWorkInProgress
+} from './fiber';
 import {
 	Lane,
 	NoLane,
@@ -14,11 +24,23 @@ import {
 } from './fiberLanes';
 import { flushSyncCallbacks, scheduleSyncCallback } from './syncTaskQueue';
 import { HostRoot } from './workTags';
+import {
+	unstable_scheduleCallback as scheduleCallback,
+	unstable_NormalPriority as NormalPriority
+} from 'scheduler';
+import { HookHasEffect, Passive } from './hookEffectTags';
 
 let workInProgress: FiberNode | null = null;
 
-// 这个lane就是当前render执行所属的优先级lane，整个render过程都是这个lane
+/**
+ * 这个lane就是当前render执行所属的优先级lane，整个render过程都是这个lane
+ */
 let wipRootRenderLane: Lane = NoLane;
+
+/**
+ * 标识是否已经触发useEffect的调度
+ */
+let rootDoesHasPassiveEffect = false;
 
 // 这个lane就是当前render执行所属的优先级lane，整个render过程都是这个lane
 function prepareFreshStack(root: FiberRootNode, lane: Lane) {
@@ -148,6 +170,22 @@ function commitRoot(root: FiberRootNode) {
 	root.finishedWork = null;
 	root.finishedLane = NoLane;
 
+	if (
+		(finishedWork.flags & PassiveMask) !== NoFlags ||
+		(finishedWork.subtreeFlags & PassiveMask) !== NoFlags
+	) {
+		if (!rootDoesHasPassiveEffect) {
+			rootDoesHasPassiveEffect = true;
+			// 调度副作用
+			// 用NormalPriority这个优先级来调度，可以理解为调度一个异步函数
+			scheduleCallback(NormalPriority, () => {
+				// 执行副作用
+				flushPassiveEffects(root.pendingPassiveEffects);
+				return;
+			});
+		}
+	}
+
 	/**
 	 * commit存在3个子阶段：beforeMutation,mutation,layout
 	 */
@@ -157,11 +195,50 @@ function commitRoot(root: FiberRootNode) {
 
 	if (subtreeHasEffect || rootHasEffect) {
 		// mutation
-		commitMutationEffects(finishedWork);
+		commitMutationEffects(finishedWork, root);
 		root.current = finishedWork;
 	} else {
 		root.current = finishedWork;
 	}
+
+	rootDoesHasPassiveEffect = false;
+	ensureRootIsScheduled(root);
+}
+
+function flushPassiveEffects(pendingPassiveEffects: PendingPassiveEffects) {
+	// effect的执行顺序是从叶子往上执行所有的destroy，再从叶子往上执行所有的create
+	pendingPassiveEffects.unmount.forEach((effect) => {
+		commitHookEffectListUnmount(Passive, effect);
+	});
+	pendingPassiveEffects.unmount = [];
+
+	// 执行上一次的destroy
+	pendingPassiveEffects.update.forEach((effect) => {
+		commitHookEffectListDestroy(Passive | HookHasEffect, effect);
+	});
+
+	// 执行本次的create
+	pendingPassiveEffects.update.forEach((effect) => {
+		commitHookEffectListCreate(Passive | HookHasEffect, effect);
+	});
+	pendingPassiveEffects.update = [];
+
+	// 在effect中，也可以触发更新，例如：
+	/*
+		useEffect(()=>{
+			setNum(1)
+		})
+	*/
+	// ? 这里用flushSyncCallbacks还是有点没有理解，不理解的地方在于syncQueue是怎样存入数组的
+	/* 
+		setNum触发更新，是可以走到scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root));
+		这里是同步的将函数放入数组。在之前执行flushSyncCallbacks时syncQueue已经重置为null，这里就会重新有一个未执行的数组，
+		如果不调用flushSyncCallbacks，以下代码也会在下一个微任务里面调用：
+		scheduleMicroTask(flushSyncCallbacks);
+		而马上调用，可以在本个微任务中完成
+	*/
+
+	flushSyncCallbacks();
 }
 
 function workLoop() {

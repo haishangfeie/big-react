@@ -8,6 +8,12 @@ import {
 import { Flags, NoFlags } from './FiberFlags';
 import { Container } from 'hostConfig';
 import { Lane, Lanes, NoLane, NoLanes } from './fiberLanes';
+import { Effect } from './fiberHooks';
+
+export interface PendingPassiveEffects {
+	unmount: Effect[];
+	update: Effect[];
+}
 
 export class FiberNode {
 	tag: WorkTag;
@@ -27,6 +33,9 @@ export class FiberNode {
 	alternate: FiberNode | null;
 	flags: Flags;
 	subtreeFlags: Flags;
+	/**
+	 * 对于FunctionComponent，updateQueue可以用于存储useEffect hook的环状链表
+	 */
 	updateQueue: unknown;
 	deletions: FiberNode[] | null;
 
@@ -76,6 +85,8 @@ export class FiberRootNode {
 	pendingLanes: Lanes;
 	/** 本次更新消费的lane */
 	finishedLane: Lane;
+	/** 用于收集useEffect回调 */
+	pendingPassiveEffects: PendingPassiveEffects;
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;
@@ -84,6 +95,11 @@ export class FiberRootNode {
 		this.finishedWork = null;
 		this.pendingLanes = NoLanes;
 		this.finishedLane = NoLane;
+
+		this.pendingPassiveEffects = {
+			unmount: [],
+			update: []
+		};
 	}
 }
 
