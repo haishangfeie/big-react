@@ -1,3 +1,17 @@
 span {
   word-break:break-all;
 }
+
+.priority-1{
+  color:green
+}
+
+.priority-2{
+  color:red
+}
+.priority-3{
+  color:blue
+}
+.priority-4{
+  color:black
+}
