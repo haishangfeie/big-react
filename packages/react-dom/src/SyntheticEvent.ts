@@ -23,6 +23,7 @@ const validEventTypeList = ['click'];
 
 export function updateFiberProps(node: DOMElement, props: Props) {
 	node[elementPropsKey] = props;
+	return node;
 }
 
 export function initEvent(container: Container, eventType: string) {

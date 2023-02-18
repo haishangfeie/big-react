@@ -1,5 +1,6 @@
 import {
 	Container,
+	Instance,
 	appendInitialChild,
 	createInstance,
 	createTextInstance
@@ -13,7 +14,6 @@ import {
 	Fragment
 } from './workTags';
 import { NoFlags, Update } from './FiberFlags';
-import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
 
 function markUpdate(fiber: FiberNode) {
 	fiber.flags |= Update;
@@ -33,7 +33,8 @@ export const completeWork = (wip: FiberNode) => {
 				// 2. 如果props发生变化，需要打上Update标志
 				// 这里应该是简化了实现了，react应该是要将每个属性比较，只要有一个需要更新都要打上标识，并利用updateQueue记录
 				// 这里显然没有做这些工作，而是每次都将属性更新了
-				updateFiberProps(wip.stateNode, newProps);
+				// updateFiberProps(wip.stateNode, newProps);
+				markUpdate(wip);
 			} else {
 				// 1. 构建dom
 				// 2. 将dom插入到dom树中
@@ -74,7 +75,7 @@ export const completeWork = (wip: FiberNode) => {
 	}
 };
 
-function appendAllChildren(parent: Container, wip: FiberNode) {
+function appendAllChildren(parent: Container | Instance, wip: FiberNode) {
 	let node = wip.child;
 
 	while (node !== null) {

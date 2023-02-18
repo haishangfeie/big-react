@@ -5,6 +5,7 @@ import {
 import { ReactElementType } from 'shared/ReactTypes';
 import { Container, Instance } from './hostConfig';
 import { REACT_ELEMENT_TYPE, REACT_FRAGMENT_TYPE } from 'shared/ReactSymbols';
+import * as _Scheduler from 'scheduler';
 
 let idCounter = 0;
 export function createRoot() {
@@ -84,6 +85,7 @@ export function createRoot() {
 		return child.text;
 	}
 	return {
+		_Scheduler,
 		render(element: ReactElementType) {
 			return updateContainer(element, root);
 		},
