@@ -2,6 +2,7 @@ import internals from 'shared/internals';
 import { FiberNode } from './fiber';
 import { Dispatcher, Dispatch } from 'react/src/currentDispatcher';
 import {
+	Update,
 	UpdateQueue,
 	createUpdate,
 	createUpdateQueue,
@@ -28,6 +29,8 @@ interface Hook {
 	memoizedState: any;
 	updateQueue: unknown;
 	next: Hook | null;
+	baseState: any;
+	baseQueue: Update<any> | null;
 }
 
 export interface Effect {
@@ -86,14 +89,37 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 function updateState<State>(): [State, Dispatch<State>] {
 	const hook = updateWorkInProgressHook();
 	const queue = hook.updateQueue as UpdateQueue<State>;
+	const baseState = hook.baseState;
 	const { pending } = queue.shared;
+	const current = currentHook as Hook;
+	let baseQueue = current.baseQueue;
+
 	if (pending !== null) {
-		const { memoizedState } = processUpdateQueue(
-			hook.memoizedState,
-			pending,
-			renderLane
-		);
-		hook.memoizedState = memoizedState;
+		if (baseQueue !== null) {
+			// b2->b0->b1->b2
+			const baseFirst = baseQueue.next;
+			// p2->p0->p1-p2
+			const pendingFirst = pending.next;
+
+			baseQueue.next = pendingFirst;
+			pending.next = baseFirst;
+			// p2->b0->b1->b2->p0->p1-p2
+		}
+		baseQueue = pending;
+		// pending update 、baseQueue 保存在current中
+		current.baseQueue = pending;
+		queue.shared.pending = null;
+
+		if (baseQueue !== null) {
+			const {
+				memoizedState,
+				baseQueue: newBaseQueue,
+				baseState: newBaseState
+			} = processUpdateQueue(baseState, baseQueue, renderLane);
+			hook.memoizedState = memoizedState;
+			hook.baseState = newBaseState;
+			hook.baseQueue = newBaseQueue;
+		}
 	}
 	queue.shared.pending = null;
 	return [hook.memoizedState, queue.dispatch!];
@@ -135,7 +161,9 @@ function mountWorkInProgressHook(): Hook {
 	const hook: Hook = {
 		memoizedState: null,
 		next: null,
-		updateQueue: null
+		updateQueue: null,
+		baseState: null,
+		baseQueue: null
 	};
 	// mount时是第一个hook
 	if (workInProgressHook === null) {
@@ -192,7 +220,9 @@ function updateWorkInProgressHook(): Hook {
 	const newHook: Hook = {
 		memoizedState: currentHook?.memoizedState || null,
 		updateQueue: currentHook?.updateQueue || null,
-		next: null
+		next: null,
+		baseState: currentHook.baseState,
+		baseQueue: currentHook.baseQueue
 	};
 
 	if (workInProgressHook === null) {

@@ -1,18 +1,26 @@
-import ReactDOM from 'react-noop-renderer/index';
+/* eslint-disable prettier/prettier */
+import React, { useState } from 'react';
+import ReactDOM from 'react-dom/client';
 
 function App() {
+	const [num, setNum] = useState(100);
 	return (
-		<>
-			<Child />
-			<div>hello world</div>
-		</>
+		<ul onClick={() => setNum(50)}>
+			{new Array(num).fill(0).map((_, i) => {
+				return <Child key={i}>{i}</Child>;
+			})}
+		</ul>
 	);
 }
 
-function Child() {
-	return 'Child';
+function Child({ children }) {
+	const now = performance.now();
+	while (performance.now() - now < 4) {
+		//
+	}
+	return <li>{children}</li>;
 }
 
-const root = ReactDOM.createRoot();
+const root = ReactDOM.createRoot(document.querySelector('#root') as Element);
+
 root.render(<App />);
-window.root = root;

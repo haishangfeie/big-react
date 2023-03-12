@@ -78,6 +78,9 @@ export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 
 // schedule阶段入口
 function ensureRootIsScheduled(root: FiberRootNode) {
+	if (__DEV__) {
+		console.warn('schedule阶段入口');
+	}
 	const curCallback = root.callbackNode;
 	// 保证useEffect已经执行
 	// 原因：因为useEffect中可以触发更新，而这个更新的优先级可能比当前的优先级更高，需要打断当前的更新
@@ -134,6 +137,9 @@ function ensureRootIsScheduled(root: FiberRootNode) {
 		// 在微任务中，遍历执行更新数组中的每一个方法
 		scheduleMicroTask(flushSyncCallbacks);
 	} else {
+		if (__DEV__) {
+			console.warn(`在宏任务中调度，优先级:${updateLane}`);
+		}
 		// 其他优先级，使用宏任务调度
 		const schedulePriority = lanesToSchedulerPriority(updateLane);
 		newCallbackNode = scheduleCallback(
@@ -165,6 +171,9 @@ function markUpdateFromFiberToRoot(fiber: FiberNode): FiberRootNode | null {
 }
 
 function performSyncWorkOnRoot(root: FiberRootNode) {
+	if (__DEV__) {
+		console.warn('performSyncWorkOnRoot');
+	}
 	const nextLane = getHighestPriorityLane(root.pendingLanes);
 
 	if (nextLane !== SyncLane) {
@@ -177,7 +186,6 @@ function performSyncWorkOnRoot(root: FiberRootNode) {
 	}
 
 	const exitStatus = renderRoot(root, SyncLane, false);
-
 	if (exitStatus === RootCompleted) {
 		const finishedWork = root.current.alternate;
 		root.finishedWork = finishedWork;
@@ -205,7 +213,9 @@ function performConcurrentWorkOnRoot(
 	const exitStatus = renderRoot(root, lane, !needSync);
 
 	ensureRootIsScheduled(root);
-
+	if (__DEV__) {
+		console.warn(`exitStatus:${exitStatus}`);
+	}
 	if (exitStatus === RootInComplete) {
 		// 中断
 		if (root.callbackNode !== currentCallbackNode) {
@@ -218,11 +228,12 @@ function performConcurrentWorkOnRoot(
 		root.finishedWork = finishedWork;
 		wipRootRenderLane = NoLane;
 
-		root.finishedLane = SyncLane;
+		root.finishedLane = lane;
 		// 根据wip fiberNode树以及树中的flags执行具体的dom操作
+		if (__DEV__) {
+			console.log(`root:`, root);
+		}
 		commitRoot(root);
-	} else if (__DEV__) {
-		console.error('还未实现并发更新结束状态');
 	}
 }
 
@@ -259,7 +270,6 @@ function commitRoot(root: FiberRootNode) {
 			scheduleCallback(NormalPriority, () => {
 				// 执行副作用
 				flushPassiveEffects(root.pendingPassiveEffects);
-				const didFlushPassiveEffect = false;
 				return;
 			});
 		}
@@ -371,10 +381,10 @@ function renderRoot(root: FiberRootNode, lane: Lane, shouldTimeSlice: boolean) {
 		console.warn(`开始${shouldTimeSlice ? '并发' : '同步'}更新`);
 	}
 
-	// 非中断的时候才需要初始化
+	// 非中断的时候才需要初始化,wipRootRenderLane===lane说明当前是处于中断
 	if (wipRootRenderLane !== lane) {
 		// 初始化
-		prepareFreshStack(root, SyncLane);
+		prepareFreshStack(root, lane);
 	}
 
 	do {

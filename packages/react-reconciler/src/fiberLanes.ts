@@ -29,6 +29,7 @@ export function requestUpdateLane() {
 	// 从上下文获取当前scheduler优先级
 	const currentSchedulerPriority = unstable_getCurrentPriorityLevel();
 	const lane = schedulePriorityToLane(currentSchedulerPriority);
+
 	return lane;
 }
 
@@ -72,4 +73,8 @@ export function schedulePriorityToLane(schedulerPriority: number) {
 	}
 
 	return NoLane;
+}
+
+export function isSubsetOfLanes(set: Lanes, subSet: Lane) {
+	return (set & subSet) === subSet;
 }
