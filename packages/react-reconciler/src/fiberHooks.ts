@@ -89,7 +89,8 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 function updateState<State>(): [State, Dispatch<State>] {
 	const hook = updateWorkInProgressHook();
 	const queue = hook.updateQueue as UpdateQueue<State>;
-	const baseState = hook.baseState;
+	const baseState =
+		hook.baseState === null ? hook.memoizedState : hook.baseState;
 	const { pending } = queue.shared;
 	const current = currentHook as Hook;
 	let baseQueue = current.baseQueue;
